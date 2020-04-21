@@ -2,7 +2,7 @@ import absl
 import tensorflow as tf
 from tensorflow import keras
 from typing import Text
-
+import os
 
 def gzip_reader_fn(filenames):
   return tf.data.TFRecordDataset(
@@ -70,13 +70,19 @@ def run_fn(fn_args):
   mirrored_strategy = tf.distribute.MirroredStrategy()
   with mirrored_strategy.scope():
     model = build_keras_model()
+  
+  # View all logs in different runs
+  # tensorboard --logdir /var/tmp/santander/pipekeras/Trainer/
+  log_dir = os.path.join(os.path.dirname(fn_args.serving_model_dir), 'logs')
+  tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, update_freq='batch')
 
   model.fit(
       train_dataset,
       epochs=2,
       steps_per_epoch=1000,
       validation_data=eval_dataset,
-      validation_steps=fn_args.eval_steps)
+      validation_steps=fn_args.eval_steps,
+      callbacks=[tensorboard_callback])
 
   signatures = {
       'serving_default': get_serve_tf_examples_fn(model).get_concrete_function(
