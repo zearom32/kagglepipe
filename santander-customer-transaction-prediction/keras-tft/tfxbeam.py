@@ -54,7 +54,9 @@ def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval
   # perform quality validation of a candidate model (compared to a baseline).
   eval_config = tfma.EvalConfig(
       model_specs=[tfma.ModelSpec(label_key='target')],
-      slicing_specs=[tfma.SlicingSpec()],
+      slicing_specs=[
+          tfma.SlicingSpec(),
+          tfma.SlicingSpec(feature_keys=['var_0', 'var_1'])],
       metrics_specs=[
           tfma.MetricsSpec(
               thresholds={
@@ -87,8 +89,8 @@ def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval
       pipeline_name=pipeline_name,
       pipeline_root=pipeline_root,
       components=[
-          example_gen, statistics_gen, schema_gen, transform,
-          trainer
+          example_gen, statistics_gen, schema_gen, transform, trainer,
+          model_resolver, evaluator, pusher
       ],
       enable_cache=True,
       metadata_connection_config=metadata.sqlite_metadata_connection_config(
