@@ -13,6 +13,7 @@ virtualenv -p python3 ~/envtfx
 source ~/envtfx/bin/activate
 pip install tensorflow
 pip install tfx
+pip install tensorflow-model-analysis
 pip install kaggle
 ```
 
@@ -30,6 +31,14 @@ mv test.csv test/
 cd <this_folder>
 ```
 
+3. Create pusher folder
+
+Pusher can't create folder for you.
+
+```
+mkdir -p /var/tmp/santander/pusher
+```
+
 # Estimator-based
 
 ```
@@ -37,14 +46,14 @@ cd estimator
 python tfxbeam.py
 ```
 
-# Keras without TFT
+# Keras without TFT (suggested)
 
 ```
 cd keras
 python tfxbream.py
 ```
 
-# Keras with TFT (preferred)
+# Keras with TFT
 
 ```
 cd keras-tft

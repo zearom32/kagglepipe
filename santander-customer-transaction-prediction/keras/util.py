@@ -41,10 +41,12 @@ def build_keras_model() -> tf.keras.Model:
   d = keras.layers.Dense(25, activation='relu')(d)
   outputs = keras.layers.Dense(2, activation='softmax')(d)
   model = keras.Model(inputs=inputs, outputs=outputs)
+  # https://github.com/tensorflow/tfx/issues/1550
+  # metrics can't be the same with loss
   model.compile(
       optimizer=keras.optimizers.Adam(lr=0.0005),
       loss='binary_crossentropy',
-      metrics=[keras.metrics.BinaryCrossentropy()])
+      metrics=[keras.metrics.BinaryAccuracy(name="binary_accuracy")])
 
   model.summary(print_fn=absl.logging.info)
   return model
@@ -71,12 +73,18 @@ def run_fn(fn_args):
   with mirrored_strategy.scope():
     model = build_keras_model()
 
+  # View all logs in different runs
+  # tensorboard --logdir /var/tmp/santander/keras/Trainer/
+  log_dir = os.path.join(os.path.dirname(fn_args.serving_model_dir), 'logs')
+  tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, update_freq='batch')
+
   model.fit(
       train_dataset,
       epochs=2,
       steps_per_epoch=1000,
       validation_data=eval_dataset,
-      validation_steps=fn_args.eval_steps)
+      validation_steps=fn_args.eval_steps,
+      callbacks=[tensorboard_callback])
 
   signatures = {
       'serving_default': get_serve_tf_examples_fn(model).get_concrete_function(

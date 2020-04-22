@@ -2,6 +2,7 @@ import absl
 import tensorflow as tf
 from tensorflow import keras
 from typing import Text
+import tensorflow_transform as tft
 import os
 
 def gzip_reader_fn(filenames):
@@ -9,25 +10,19 @@ def gzip_reader_fn(filenames):
       filenames,
       compression_type='GZIP')
 
-def get_feature_spec(include_label):
-  feature_spec = {}
-  for key in range(0, 200):
-    feature_spec['var_{0}'.format(key)] = tf.io.FixedLenFeature([1], dtype=tf.float32)
-
-  if include_label:
-    feature_spec['target'] = tf.io.FixedLenFeature([1], dtype=tf.int64)
-  return feature_spec
-
 def input_fn(file_pattern: Text,
-              batch_size: int = 200) -> tf.data.Dataset:
-  feature_spec = get_feature_spec(include_label=True)
+             tf_transform_output: tft.TFTransformOutput,
+             batch_size: int = 200) -> tf.data.Dataset:
+
+  transformed_feature_spec = (
+      tf_transform_output.transformed_feature_spec().copy())
 
   dataset = tf.data.experimental.make_batched_features_dataset(
       file_pattern=file_pattern,
       batch_size=batch_size,
-      features=feature_spec,
+      features=transformed_feature_spec,
       reader=gzip_reader_fn,
-      label_key='target')
+      label_key='target_tft')
 
   return dataset
 
@@ -44,35 +39,59 @@ def build_keras_model() -> tf.keras.Model:
   model.compile(
       optimizer=keras.optimizers.Adam(lr=0.0005),
       loss='binary_crossentropy',
-      metrics=[keras.metrics.BinaryCrossentropy()])
+      metrics=[keras.metrics.BinaryAccuracy(name="binary_accuracy")])
 
   model.summary(print_fn=absl.logging.info)
   return model
 
-def get_serve_tf_examples_fn(model):
+def get_serve_tf_examples_fn(model, tf_transform_output):
+
+  model.tft_layer = tf_transform_output.transform_features_layer()
 
   @tf.function
   def serve_tf_examples_fn(serialized_tf_examples):
-    feature_spec = get_feature_spec(include_label=False)
+    feature_spec = tf_transform_output.raw_feature_spec()
+    feature_spec.pop('target')
     parsed_features = tf.io.parse_example(serialized_tf_examples, feature_spec)
-    return model(parsed_features)
+
+    transformed_features = model.tft_layer(parsed_features)
+    transformed_features.pop('target_tft')
+
+    return model(transformed_features)
 
   return serve_tf_examples_fn
 
-def run_fn(fn_args):
-  """TFX Trainer will call this function.
+# TFX Transform will call this function.
+def preprocessing_fn(inputs):
+  """tf.transform's callback function for preprocessing inputs.
+  Args:
+    inputs: map from feature keys to raw not-yet-transformed features.
+  Returns:
+    Map from string feature key to transformed feature operations.
   """
 
-  train_dataset = input_fn(fn_args.train_files, batch_size=20)
-  eval_dataset = input_fn(fn_args.eval_files, batch_size=10)
+  outputs = {}
+  for key in range(0, 200):
+    feature_key = 'var_{0}'.format(key)
+    outputs[feature_key+'_tft'] = tft.scale_to_z_score(inputs[feature_key])
+  outputs['target_tft'] = inputs['target']
+  return outputs
+
+# TFX Trainer will call this function.
+def run_fn(fn_args):
+
+  tf_transform_output = tft.TFTransformOutput(fn_args.transform_output)
+
+  train_dataset = input_fn(fn_args.train_files, tf_transform_output, batch_size=20)
+  eval_dataset = input_fn(fn_args.eval_files, tf_transform_output, batch_size=10)
 
 
   mirrored_strategy = tf.distribute.MirroredStrategy()
   with mirrored_strategy.scope():
     model = build_keras_model()
-  
+
   # View all logs in different runs
-  # tensorboard --logdir /var/tmp/santander/pipekeras/Trainer/
+  # tensorboard --logdir /var/tmp/santander/keras-tft/Trainer/
   log_dir = os.path.join(os.path.dirname(fn_args.serving_model_dir), 'logs')
   tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, update_freq='batch')
 
@@ -85,7 +104,7 @@ def run_fn(fn_args):
       callbacks=[tensorboard_callback])
 
   signatures = {
-      'serving_default': get_serve_tf_examples_fn(model).get_concrete_function(
+      'serving_default': get_serve_tf_examples_fn(model, tf_transform_output).get_concrete_function(
           tf.TensorSpec(shape=[None],
                         dtype=tf.string,
                         name='input_example_tensor')),
