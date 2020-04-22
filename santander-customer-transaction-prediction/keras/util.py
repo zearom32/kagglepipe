@@ -2,7 +2,7 @@ import absl
 import tensorflow as tf
 from tensorflow import keras
 from typing import Text
-
+import os
 
 def gzip_reader_fn(filenames):
   return tf.data.TFRecordDataset(
@@ -39,7 +39,7 @@ def build_keras_model() -> tf.keras.Model:
   d = keras.layers.concatenate(inputs)
   d = keras.layers.Dense(50, activation='relu')(d)
   d = keras.layers.Dense(25, activation='relu')(d)
-  outputs = keras.layers.Dense(2, activation='softmax')(d)
+  outputs = keras.layers.Dense(1, activation='sigmoid')(d)
   model = keras.Model(inputs=inputs, outputs=outputs)
   # https://github.com/tensorflow/tfx/issues/1550
   # metrics can't be the same with loss

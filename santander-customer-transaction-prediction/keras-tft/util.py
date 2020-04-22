@@ -40,7 +40,7 @@ def build_keras_model() -> tf.keras.Model:
   d = keras.layers.concatenate(inputs)
   d = keras.layers.Dense(50, activation='relu')(d)
   d = keras.layers.Dense(25, activation='relu')(d)
-  outputs = keras.layers.Dense(2, activation='softmax')(d)
+  outputs = keras.layers.Dense(1, activation='sigmoid')(d)
 
   model = keras.Model(inputs=inputs, outputs=outputs)
   model.compile(
