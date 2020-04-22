@@ -26,7 +26,7 @@ def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval
   example_gen = CsvExampleGen(input=examples)
   statistics_gen = StatisticsGen(examples=example_gen.outputs['examples'])
   schema_gen = SchemaGen(statistics=statistics_gen.outputs['statistics'],
-      infer_feature_shape=False)
+      infer_feature_shape=True) # infer_feature_shape controls sparse or dense
 
   # Transform is too slow in my side.
   transform = Transform(
@@ -36,7 +36,7 @@ def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval
   
   trainer = Trainer(
       custom_executor_spec=executor_spec.ExecutorClassSpec(GenericExecutor),
-      transformed_examples=transform.outputs['transformed_examples'],
+      examples=transform.outputs['transformed_examples'],
       transform_graph=transform.outputs['transform_graph'],
       schema=schema_gen.outputs['schema'],
       module_file=module_file,

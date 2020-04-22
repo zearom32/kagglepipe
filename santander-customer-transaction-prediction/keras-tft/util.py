@@ -26,15 +26,22 @@ def input_fn(file_pattern: Text,
 
   return dataset
 
+def raw_column_name(idx):
+  return 'var_{0}'.format(idx)
+
+def tft_column_name(idx):
+  return 'var_{0}_tft'.format(idx)
+
 def build_keras_model() -> tf.keras.Model:
   inputs = [
-      keras.layers.Input(shape=(1,), name='var_{0}'.format(key))
+      keras.layers.Input(shape=(1,), name=tft_column_name(key))
       for key in range(0, 200)
   ]
   d = keras.layers.concatenate(inputs)
   d = keras.layers.Dense(50, activation='relu')(d)
   d = keras.layers.Dense(25, activation='relu')(d)
   outputs = keras.layers.Dense(2, activation='softmax')(d)
+
   model = keras.Model(inputs=inputs, outputs=outputs)
   model.compile(
       optimizer=keras.optimizers.Adam(lr=0.0005),
@@ -54,6 +61,8 @@ def get_serve_tf_examples_fn(model, tf_transform_output):
     feature_spec.pop('target')
     parsed_features = tf.io.parse_example(serialized_tf_examples, feature_spec)
 
+    # or don't set tft_layer but
+    # transformed_features = tf_transform_output.transform_raw_features(parsed_features)
     transformed_features = model.tft_layer(parsed_features)
     transformed_features.pop('target_tft')
 
@@ -72,8 +81,8 @@ def preprocessing_fn(inputs):
 
   outputs = {}
   for key in range(0, 200):
-    feature_key = 'var_{0}'.format(key)
-    outputs[feature_key+'_tft'] = tft.scale_to_z_score(inputs[feature_key])
+    feature_key = raw_column_name(key)
+    outputs[tft_column_name(key)] = tft.scale_to_z_score(inputs[feature_key])
   outputs['target_tft'] = inputs['target']
   return outputs
 
