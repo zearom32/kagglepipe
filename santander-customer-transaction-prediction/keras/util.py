@@ -73,8 +73,6 @@ def run_fn(fn_args):
   with mirrored_strategy.scope():
     model = build_keras_model()
 
-  # View all logs in different runs
-  # tensorboard --logdir /var/tmp/santander/keras/Trainer/
   log_dir = os.path.join(os.path.dirname(fn_args.serving_model_dir), 'logs')
   tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, update_freq='batch')
 

@@ -82,7 +82,7 @@ def preprocessing_fn(inputs):
   outputs = {}
   for key in range(0, 200):
     feature_key = raw_column_name(key)
-    outputs[tft_column_name(key)] = tft.scale_to_z_score(inputs[feature_key])
+    outputs[tft_column_name(key)] = inputs[feature_key] # tft.scale_to_z_score(inputs[feature_key])
   outputs['target_tft'] = inputs['target']
   return outputs
 
@@ -99,8 +99,6 @@ def run_fn(fn_args):
   with mirrored_strategy.scope():
     model = build_keras_model()
 
-  # View all logs in different runs
-  # tensorboard --logdir /var/tmp/santander/keras-tft/Trainer/
   log_dir = os.path.join(os.path.dirname(fn_args.serving_model_dir), 'logs')
   tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, update_freq='batch')
 
