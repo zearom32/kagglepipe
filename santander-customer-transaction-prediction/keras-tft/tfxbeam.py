@@ -31,8 +31,7 @@ def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval
   if runner == 'kubeflow':
     pipeline_root_param = os.path.join('gs://{{kfp-default-bucket}}', pipeline_name, '{{workflow.uid}}')
     data_root_param = data_types.RuntimeParameter(name='data-root', default='gs://renming-mlpipeline-kubeflowpipelines-default/kaggle/santander/train', ptype=Text)
-    # Pusher doesn't support it yet. pusher_target_param = data_types.RuntimeParameter(name='data-root', default=os.path.join('gs://your-bucket', pipeline_name, 'serving'), ptype=Text)
-    pusher_target_param = os.path.join(str(pipeline.ROOT_PARAMETER), 'serving')
+    pusher_target_param = data_types.RuntimeParameter(name='pusher-destination', default='gs://renming-mlpipeline-kubeflowpipelines-default/kaggle/santander/serving', ptype=Text)
   else:
     pipeline_root_param = pipeline_root
     data_root_param = data_root
@@ -99,9 +98,8 @@ def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval
   pusher = Pusher(
       model=trainer.outputs['model'],
       model_blessing=evaluator.outputs['blessing'],
-      push_destination=pusher_pb2.PushDestination(
-          filesystem=pusher_pb2.PushDestination.Filesystem(
-              base_directory=pusher_target_param)))
+      push_destination={'filesystem': {
+          'base_directory': pusher_target_param}})
 
   return pipeline.Pipeline(
       pipeline_name=pipeline_name,
