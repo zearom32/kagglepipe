@@ -76,10 +76,9 @@ pip install kfp
 cd keras-tft
 tfx pipeline create --engine kubeflow \
     --build_target_image gcr.io/renming-mlpipeline/santander-custom \
-    --pipeline_path tfxbeam.py
-    --endpoint <KFP-host-name>
-
-# It may takes a while in the phase of using skaffold to compile container image.
-
-It will compile and upgrade to KFP.
+    --pipeline_path tfxbeam.py \
+    --endpoint 1c4774e7d442cc4c-dot-us-central2.pipelines.googleusercontent.com
 ```
+
+It may takes a while in the phase of using skaffold to compile container image.
+It will compile and upgrade to KFP.
