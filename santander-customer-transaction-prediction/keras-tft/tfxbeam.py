@@ -17,6 +17,7 @@ from tfx.dsl.experimental import latest_blessed_model_resolver
 from tfx.types import Channel
 from tfx.types.standard_artifacts import Model
 from tfx.types.standard_artifacts import ModelBlessing
+from hello_component import component
 
 FLAGS = flags.FLAGS
 
@@ -24,6 +25,8 @@ def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval
   module_file = 'util.py' # util.py is a file in the same folder
   examples = external_input(data_root)
   example_gen = CsvExampleGen(input=examples)
+  hello = component.HelloComponent(
+      input_data=example_gen.outputs['examples'], instance_name='HelloWorld')
   statistics_gen = StatisticsGen(examples=example_gen.outputs['examples'])
   schema_gen = SchemaGen(statistics=statistics_gen.outputs['statistics'],
       infer_feature_shape=True) # infer_feature_shape controls sparse or dense
@@ -90,7 +93,7 @@ def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval
       pipeline_root=pipeline_root,
       components=[
           example_gen, statistics_gen, schema_gen, transform, trainer,
-          model_resolver, evaluator, pusher
+          model_resolver, evaluator, pusher, hello
       ],
       enable_cache=True,
       metadata_connection_config=metadata.sqlite_metadata_connection_config(
