@@ -1,5 +1,6 @@
 from absl import app
 from absl import flags
+from typing import Text
 
 import os
 import tensorflow as tf
@@ -11,6 +12,7 @@ from tfx.proto import pusher_pb2
 from tfx.proto import trainer_pb2
 from tfx.utils.dsl_utils import external_input
 from tfx.orchestration import pipeline
+from tfx.orchestration import data_types
 from tfx.orchestration import metadata
 from tfx.orchestration.beam.beam_dag_runner import BeamDagRunner
 from tfx.dsl.experimental import latest_blessed_model_resolver
@@ -18,12 +20,25 @@ from tfx.types import Channel
 from tfx.types.standard_artifacts import Model
 from tfx.types.standard_artifacts import ModelBlessing
 from hello_component import component
+from tfx.orchestration.kubeflow import kubeflow_dag_runner
 
 FLAGS = flags.FLAGS
 
-def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval_steps, pusher_target):
+def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval_steps, pusher_target, runner):
   module_file = 'util.py' # util.py is a file in the same folder
-  examples = external_input(data_root)
+
+  # RuntimeParameter is only supported on KubeflowDagRunner currently
+  if runner == 'kubeflow':
+    pipeline_root_param = os.path.join('gs://{{kfp-default-bucket}}', pipeline_name, '{{workflow.uid}}')
+    data_root_param = data_types.RuntimeParameter(name='data-root', default='gs://renming-mlpipeline-kubeflowpipelines-default/kaggle/santander/train', ptype=Text)
+    # Pusher doesn't support it yet. pusher_target_param = data_types.RuntimeParameter(name='data-root', default=os.path.join('gs://your-bucket', pipeline_name, 'serving'), ptype=Text)
+    pusher_target_param = os.path.join(str(pipeline.ROOT_PARAMETER), 'serving')
+  else:
+    pipeline_root_param = pipeline_root
+    data_root_param = data_root
+    pusher_target_param = pusher_target
+
+  examples = external_input(data_root_param)
   example_gen = CsvExampleGen(input=examples)
   hello = component.HelloComponent(
       input_data=example_gen.outputs['examples'], instance_name='HelloWorld')
@@ -36,7 +51,7 @@ def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval
       examples=example_gen.outputs['examples'],
       schema=schema_gen.outputs['schema'],
       module_file=module_file)
-  
+
   trainer = Trainer(
       custom_executor_spec=executor_spec.ExecutorClassSpec(GenericExecutor),
       examples=transform.outputs['transformed_examples'],
@@ -86,11 +101,11 @@ def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval
       model_blessing=evaluator.outputs['blessing'],
       push_destination=pusher_pb2.PushDestination(
           filesystem=pusher_pb2.PushDestination.Filesystem(
-              base_directory=pusher_target)))
+              base_directory=pusher_target_param)))
 
   return pipeline.Pipeline(
       pipeline_name=pipeline_name,
-      pipeline_root=pipeline_root,
+      pipeline_root=pipeline_root_param,
       components=[
           example_gen, statistics_gen, schema_gen, transform, trainer,
           model_resolver, evaluator, pusher, hello
@@ -107,9 +122,21 @@ def main(_):
       flags.FLAGS.data_root,
       flags.FLAGS.train_steps,
       flags.FLAGS.eval_steps,
-      flags.FLAGS.pusher_target)
+      flags.FLAGS.pusher_target,
+      flags.FLAGS.runner)
 
-  BeamDagRunner().run(pipeline)
+  if flags.FLAGS.runner == 'local':
+    BeamDagRunner().run(pipeline)
+  elif flags.FLAGS.runner == 'kubeflow':
+    metadata_config = kubeflow_dag_runner.get_default_kubeflow_metadata_config()
+    tfx_image = os.environ.get('KUBEFLOW_TFX_IMAGE', None)
+    runner_config = kubeflow_dag_runner.KubeflowDagRunnerConfig(
+        kubeflow_metadata_config=metadata_config,
+        tfx_image=tfx_image)
+    kubeflow_dag_runner.KubeflowDagRunner(config=runner_config).run(
+        pipeline)
+  else:
+    exit(1)
 
 if __name__ == '__main__':
   flags.DEFINE_string(
@@ -117,10 +144,10 @@ if __name__ == '__main__':
       help="pipeline name used to identity different pipelines")
   flags.DEFINE_string(
       name="pipeline_root", default="/var/tmp/santander/keras-tft/",
-      help="pipeline root for storing artifacts")
+      help="pipeline root for storing artifacts, it's not used in KFP runner")
   flags.DEFINE_string(
       name="data_root", default="/var/tmp/santander/data/train",
-      help="Folder for Kaggle train.csv. No test.csv in the folder.")
+      help="Folder for Kaggle train.csv. No test.csv in the folder, it's not used in KFP runner")
   flags.DEFINE_integer(
       name="train_steps", default=10000,
       help="Steps to train a model")
@@ -129,6 +156,10 @@ if __name__ == '__main__':
       help="Steps to train a model")
   flags.DEFINE_string(
       name="pusher_target", default="/var/tmp/santander/pusher",
+      help="Pusher can't create this folder for you, it's not used in KFP runner")
+  flags.DEFINE_enum(
+      name="runner", default="kubeflow",
+      enum_values=['local', 'kubeflow'],
       help="Pusher can't create this folder for you")
 
   app.run(main)

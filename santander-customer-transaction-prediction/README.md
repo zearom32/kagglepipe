@@ -46,7 +46,7 @@ cd estimator
 python tfxbeam.py
 ```
 
-# Keras without TFT (suggested)
+# Keras without TFT
 
 ```
 cd keras
@@ -55,9 +55,31 @@ python tfxbream.py
 
 # Keras with TFT
 
+## Run locally via Beam local runner
+
 ```
 cd keras-tft
-python tfxbeam.py
+python tfxbeam.py --runner local
 ```
 
-                                                                                
+## Run in Kubeflow Pipelines
+
+Install KFP & Skaffold
+```
+pip install kfp
+
+# Install Skaffold
+# https://skaffold.dev/docs/install/
+```
+
+```
+cd keras-tft
+tfx pipeline create --engine kubeflow \
+    --build_target_image gcr.io/renming-mlpipeline/santander-custom \
+    --pipeline_path tfxbeam.py
+    --endpoint <KFP-host-name>
+
+# It may takes a while in the phase of using skaffold to compile container image.
+
+It will compile and upgrade to KFP.
+```
