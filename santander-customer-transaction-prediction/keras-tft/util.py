@@ -119,12 +119,12 @@ def run_fn(fn_args):
       directory=fn_args.serving_model_dir,
       project_name='tuner')  
   tuner.search(
-        train_dataset,
-        epochs=2,
-        steps_per_epoch=1000,
-        validation_steps=fn_args.eval_steps,
-        validation_data=eval_dataset,
-        callbacks=[tensorboard_callback])
+      train_dataset,
+      epochs=2,
+      steps_per_epoch=1000,
+      validation_steps=fn_args.eval_steps,
+      validation_data=eval_dataset,
+      callbacks=[tensorboard_callback])
   tuner.search_space_summary()
   tuner.results_summary()
   best_hparams = tuner.oracle.get_best_trials(1)[0].hyperparameters.get_config()
