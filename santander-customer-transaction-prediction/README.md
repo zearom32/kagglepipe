@@ -72,6 +72,11 @@ pip install kfp
 # https://skaffold.dev/docs/install/
 ```
 
+Install Keras Tuner
+```
+pip install -U keras-tuner
+```
+
 ```
 cd keras-tft
 tfx pipeline create --engine kubeflow \

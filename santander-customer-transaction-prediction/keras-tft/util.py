@@ -4,6 +4,7 @@ from tensorflow import keras
 from typing import Text
 import tensorflow_transform as tft
 import os
+from kerastuner.tuners import RandomSearch
 
 def gzip_reader_fn(filenames):
   return tf.data.TFRecordDataset(
@@ -32,7 +33,7 @@ def raw_column_name(idx):
 def tft_column_name(idx):
   return 'var_{0}_tft'.format(idx)
 
-def build_keras_model() -> tf.keras.Model:
+def build_keras_model(hp) -> tf.keras.Model:
   inputs = [
       keras.layers.Input(shape=(1,), name=tft_column_name(key))
       for key in range(0, 200)
@@ -44,7 +45,8 @@ def build_keras_model() -> tf.keras.Model:
 
   model = keras.Model(inputs=inputs, outputs=outputs)
   model.compile(
-      optimizer=keras.optimizers.Adam(lr=0.0005),
+      optimizer=keras.optimizers.Adam(lr=hp.Choice('learning_rate',
+                      values=[1e-2, 1e-3, 1e-4])),
       loss='binary_crossentropy',
       metrics=[keras.metrics.BinaryAccuracy(name="binary_accuracy")])
 
@@ -94,21 +96,39 @@ def run_fn(fn_args):
   train_dataset = input_fn(fn_args.train_files, tf_transform_output, batch_size=20)
   eval_dataset = input_fn(fn_args.eval_files, tf_transform_output, batch_size=10)
 
-
-  mirrored_strategy = tf.distribute.MirroredStrategy()
-  with mirrored_strategy.scope():
-    model = build_keras_model()
-
   log_dir = os.path.join(os.path.dirname(fn_args.serving_model_dir), 'logs')
   tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, update_freq='batch')
 
-  model.fit(
-      train_dataset,
-      epochs=2,
-      steps_per_epoch=1000,
-      validation_data=eval_dataset,
-      validation_steps=fn_args.eval_steps,
-      callbacks=[tensorboard_callback])
+  ## Without using tuner. Question: how to let distribute-strategy work together with tuner
+  # mirrored_strategy = tf.distribute.MirroredStrategy()
+  # with mirrored_strategy.scope():
+  #   model = build_keras_model()
+  # model.fit(
+  #     train_dataset,
+  #     epochs=2,
+  #     steps_per_epoch=1000,
+  #     validation_data=eval_dataset,
+  #     validation_steps=fn_args.eval_steps,
+  #     callbacks=[tensorboard_callback])
+
+  tuner = RandomSearch(
+      build_keras_model,
+      objective='val_binary_accuracy',
+      max_trials=5,
+      executions_per_trial=3,
+      directory=fn_args.serving_model_dir,
+      project_name='tuner')  
+  tuner.search(
+        train_dataset,
+        epochs=2,
+        steps_per_epoch=1000,
+        validation_steps=fn_args.eval_steps,
+        validation_data=eval_dataset,
+        callbacks=[tensorboard_callback])
+  tuner.search_space_summary()
+  tuner.results_summary()
+  best_hparams = tuner.oracle.get_best_trials(1)[0].hyperparameters.get_config()
+  model = tuner.get_best_models(1)[0]
 
   signatures = {
       'serving_default': get_serve_tf_examples_fn(model, tf_transform_output).get_concrete_function(
