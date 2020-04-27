@@ -15,6 +15,7 @@ pip install tensorflow
 pip install tfx
 pip install tensorflow-model-analysis
 pip install kaggle
+pip install keras-tuner
 ```
 
 2. Download data
@@ -70,11 +71,6 @@ pip install kfp
 
 # Install Skaffold
 # https://skaffold.dev/docs/install/
-```
-
-Install Keras Tuner
-```
-pip install -U keras-tuner
 ```
 
 ```
