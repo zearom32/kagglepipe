@@ -5,11 +5,12 @@ from typing import Text
 import os
 import tensorflow as tf
 import tensorflow_model_analysis as tfma
-from tfx.components import CsvExampleGen, StatisticsGen, SchemaGen, Trainer, Transform, Evaluator, Pusher, ResolverNode
+from tfx.components import CsvExampleGen, StatisticsGen, SchemaGen, Trainer, Transform, Evaluator, Pusher, ResolverNode, BulkInferrer
 from tfx.components.base import executor_spec
 from tfx.components.trainer.executor import GenericExecutor
 from tfx.proto import pusher_pb2
 from tfx.proto import trainer_pb2
+from tfx.proto import bulk_inferrer_pb2
 from tfx.utils.dsl_utils import external_input
 from tfx.orchestration import pipeline
 from tfx.orchestration import data_types
@@ -24,21 +25,27 @@ from tfx.orchestration.kubeflow import kubeflow_dag_runner
 
 FLAGS = flags.FLAGS
 
-def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval_steps, pusher_target, runner):
+def generate_pipeline(pipeline_name, pipeline_root, train_data, test_data, train_steps, eval_steps, pusher_target, runner):
   module_file = 'util.py' # util.py is a file in the same folder
 
   # RuntimeParameter is only supported on KubeflowDagRunner currently
   if runner == 'kubeflow':
     pipeline_root_param = os.path.join('gs://{{kfp-default-bucket}}', pipeline_name, '{{workflow.uid}}')
-    data_root_param = data_types.RuntimeParameter(name='data-root', default='gs://renming-mlpipeline-kubeflowpipelines-default/kaggle/santander/train', ptype=Text)
+    train_data_param = data_types.RuntimeParameter(name='train-data', default='gs://renming-mlpipeline-kubeflowpipelines-default/kaggle/santander/train', ptype=Text)
+    test_data_param = data_types.RuntimeParameter(name='test-data', default='gs://renming-mlpipeline-kubeflowpipelines-default/kaggle/santander/test', ptype=Text)
     pusher_target_param = data_types.RuntimeParameter(name='pusher-destination', default='gs://renming-mlpipeline-kubeflowpipelines-default/kaggle/santander/serving', ptype=Text)
   else:
     pipeline_root_param = pipeline_root
-    data_root_param = data_root
+    train_data_param = train_data
+    test_data_param = test_data
     pusher_target_param = pusher_target
 
-  examples = external_input(data_root_param)
-  example_gen = CsvExampleGen(input=examples)
+  examples = external_input(train_data_param)
+  example_gen = CsvExampleGen(input=examples, instance_name="train")
+
+  test_examples = external_input(test_data_param)
+  test_example_gen = CsvExampleGen(input=test_examples, instance_name="test")
+
   hello = component.HelloComponent(
       input_data=example_gen.outputs['examples'], instance_name='HelloWorld')
   statistics_gen = StatisticsGen(examples=example_gen.outputs['examples'])
@@ -89,7 +96,7 @@ def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval
   evaluator = Evaluator(
       examples=example_gen.outputs['examples'],
       model=trainer.outputs['model'],
-      baseline_model=model_resolver.outputs['model'],
+      # baseline_model=model_resolver.outputs['model'],
       # Change threshold will be ignored if there is no baseline (first run).
       eval_config=eval_config)
 
@@ -100,13 +107,22 @@ def generate_pipeline(pipeline_name, pipeline_root, data_root, train_steps, eval
       model_blessing=evaluator.outputs['blessing'],
       push_destination={'filesystem': {
           'base_directory': pusher_target_param}})
+  
+  bulk_inferrer = BulkInferrer(
+      examples=test_example_gen.outputs['examples'],
+      model=trainer.outputs['model'],
+      # model_blessing=evaluator.outputs['blessing'],
+      data_spec=bulk_inferrer_pb2.DataSpec(),
+      model_spec=bulk_inferrer_pb2.ModelSpec(),
+      instance_name="bulkInferrer"
+      )
 
   return pipeline.Pipeline(
       pipeline_name=pipeline_name,
       pipeline_root=pipeline_root_param,
       components=[
           example_gen, statistics_gen, schema_gen, transform, trainer,
-          model_resolver, evaluator, pusher, hello
+          model_resolver, evaluator, pusher, hello, test_example_gen, bulk_inferrer
       ],
       enable_cache=True,
       metadata_connection_config=metadata.sqlite_metadata_connection_config(
@@ -117,7 +133,8 @@ def main(_):
   pipeline = generate_pipeline(
       flags.FLAGS.pipeline_name,
       flags.FLAGS.pipeline_root,
-      flags.FLAGS.data_root,
+      flags.FLAGS.train_data,
+      flags.FLAGS.test_data,
       flags.FLAGS.train_steps,
       flags.FLAGS.eval_steps,
       flags.FLAGS.pusher_target,
@@ -144,8 +161,11 @@ if __name__ == '__main__':
       name="pipeline_root", default="/var/tmp/santander/keras-tft/",
       help="pipeline root for storing artifacts, it's not used in KFP runner")
   flags.DEFINE_string(
-      name="data_root", default="/var/tmp/santander/data/train",
+      name="train_data", default="/var/tmp/santander/data/train",
       help="Folder for Kaggle train.csv. No test.csv in the folder, it's not used in KFP runner")
+  flags.DEFINE_string(
+      name="test_data", default="/var/tmp/santander/data/test",
+      help="Folder for Kaggle test.csv. No train.csv in the folder, it's not used in KFP runner")
   flags.DEFINE_integer(
       name="train_steps", default=10000,
       help="Steps to train a model")

@@ -44,13 +44,13 @@ def build_keras_model(hp) -> tf.keras.Model:
   outputs = keras.layers.Dense(1, activation='sigmoid')(d)
 
   model = keras.Model(inputs=inputs, outputs=outputs)
+  lr = 1e-2 if hp == None else hp.Choice('learning_rate', values=[1e-2, 1e-3, 1e-4])
   model.compile(
-      optimizer=keras.optimizers.Adam(lr=hp.Choice('learning_rate',
-                      values=[1e-2, 1e-3, 1e-4])),
+      optimizer=keras.optimizers.Adam(lr=lr),
       loss='binary_crossentropy',
       metrics=[keras.metrics.BinaryAccuracy(name="binary_accuracy")])
 
-  model.summary(print_fn=absl.logging.info)
+  # model.summary(print_fn=absl.logging.info)
   return model
 
 def get_serve_tf_examples_fn(model, tf_transform_output):
@@ -99,36 +99,38 @@ def run_fn(fn_args):
   log_dir = os.path.join(os.path.dirname(fn_args.serving_model_dir), 'logs')
   tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, update_freq='batch')
 
-  ## Without using tuner. Question: how to let distribute-strategy work together with tuner
-  # mirrored_strategy = tf.distribute.MirroredStrategy()
-  # with mirrored_strategy.scope():
-  #   model = build_keras_model()
-  # model.fit(
-  #     train_dataset,
-  #     epochs=2,
-  #     steps_per_epoch=1000,
-  #     validation_data=eval_dataset,
-  #     validation_steps=fn_args.eval_steps,
-  #     callbacks=[tensorboard_callback])
-
-  tuner = RandomSearch(
-      build_keras_model,
-      objective='val_binary_accuracy',
-      max_trials=5,
-      executions_per_trial=3,
-      directory=fn_args.serving_model_dir,
-      project_name='tuner')  
-  tuner.search(
-      train_dataset,
-      epochs=2,
-      steps_per_epoch=1000,
-      validation_steps=fn_args.eval_steps,
-      validation_data=eval_dataset,
-      callbacks=[tensorboard_callback])
-  tuner.search_space_summary()
-  tuner.results_summary()
-  best_hparams = tuner.oracle.get_best_trials(1)[0].hyperparameters.get_config()
-  model = tuner.get_best_models(1)[0]
+  if True:
+    print("Use normal Keras model")
+    mirrored_strategy = tf.distribute.MirroredStrategy()
+    with mirrored_strategy.scope():
+      model = build_keras_model(None)
+    model.fit(
+        train_dataset,
+        epochs=2,
+        steps_per_epoch=1000,
+        validation_data=eval_dataset,
+        validation_steps=fn_args.eval_steps,
+        callbacks=[tensorboard_callback])
+  else:
+    print("Use normal Keras Tuner")
+    tuner = RandomSearch(
+        build_keras_model,
+        objective='val_binary_accuracy',
+        max_trials=5,
+        executions_per_trial=3,
+        directory=fn_args.serving_model_dir,
+        project_name='tuner')  
+    tuner.search(
+        train_dataset,
+        epochs=2,
+        steps_per_epoch=1000,
+        validation_steps=fn_args.eval_steps,
+        validation_data=eval_dataset,
+        callbacks=[tensorboard_callback])
+    tuner.search_space_summary()
+    tuner.results_summary()
+    best_hparams = tuner.oracle.get_best_trials(1)[0].hyperparameters.get_config()
+    model = tuner.get_best_models(1)[0]
 
   signatures = {
       'serving_default': get_serve_tf_examples_fn(model, tf_transform_output).get_concrete_function(
