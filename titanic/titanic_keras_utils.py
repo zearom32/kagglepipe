@@ -101,7 +101,9 @@ def keras_model_builder(feature_columns):
       colname: tf.keras.layers.Input(name=colname, shape=(), dtype=tf.string)
       for colname in CATEGORICAL_FEATURE_KEYS
   })
-  inputs = tf.keras.layers.DenseFeatures(feature_columns)(feature_input_layers)
+  partitioner = tf.compat.v1.fixed_size_partitioner(num_shards=1)
+  inputs = tf.compat.v1.keras.layers.DenseFeatures(
+      feature_columns=feature_columns, partitioner=partitioner)(feature_input_layers)
   # inputs = feature_layer(feature_input_layers)
   fc1 = tf.keras.layers.Dense(64, activation='relu')(inputs)
   fc2 = tf.keras.layers.Dense(32, activation='relu')(fc1)

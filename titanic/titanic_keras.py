@@ -52,32 +52,30 @@ def create_tfx_pipeline(pipeline_name: Text, pipeline_root: Text,
   train_data_path = os.path.join(data_root, 'train')
   test_data_path = os.path.join(data_root, 'test')
   train_examples = tfrecord_input(train_data_path)
-  train_example_gen = ImportExampleGen(input=train_examples)
+  train_example_gen = ImportExampleGen(input=train_examples, instance_name='train_example_gen')
   test_examples = tfrecord_input(test_data_path)
-  test_example_gen = ImportExampleGen(input=test_examples)
+  test_example_gen = ImportExampleGen(input=test_examples, instance_name='test_example_gen')
 
   # Computes statistics over data for visualization and example validation.
   train_statistics_gen = StatisticsGen(examples=train_example_gen.outputs['examples'])
-  test_statistics_gen = StatisticsGen(examples=test_example_gen.outputs['examples'])
+  # test_statistics_gen = StatisticsGen(examples=test_example_gen.outputs['examples'])
 
   # Generates schema based on statistics files.
   train_infer_schema = SchemaGen(
       statistics=train_statistics_gen.outputs['statistics'],
       infer_feature_shape=False)
-  # duplicated Schema and transform can't be duplicated.
-  test_infer_schema = SchemaGen(
-      statistics=test_statistics_gen.outputs['statistics'],
-      infer_feature_shape=False)
 
   train_transform = Transform(
       examples=train_example_gen.outputs['examples'],
       schema=train_infer_schema.outputs['schema'],
-      module_file=module_file)
+      module_file=module_file,
+      instance_name='train_transformer')
 
   test_transform = Transform(
       examples=test_example_gen.outputs['examples'],
       schema=train_infer_schema.outputs['schema'],
-      module_file=module_file)
+      module_file=module_file,
+      instance_name='test_transformer')
 
   # Uses user-provided Python function that implements a model using TF-Learn.
   trainer = Trainer(
@@ -95,38 +93,38 @@ def create_tfx_pipeline(pipeline_name: Text, pipeline_root: Text,
       model=trainer.outputs['model']
   )
 
-  # eval_config = tfma.EvalConfig(
-  #     model_specs=[tfma.ModelSpec(label_key='Survived')],
-  #     metrics_specs=[
-  #         tfma.MetricsSpec(
-  #             thresholds={
-  #                 'BinaryAccuracy':
-  #                     tfma.config.MetricThreshold(
-  #                         value_threshold=tfma.GenericValueThreshold(
-  #                             lower_bound={'value': 0.6}))
-  #             })
-  #     ])
-  #
-  # evaluator = Evaluator(
-  #     examples=example_gen.outputs['examples'],
-  #     model=trainer.outputs['model'],
-  #     # Change threshold will be ignored if there is no baseline (first run).
-  #     eval_config=eval_config)
-  #
-  # # Checks whether the model passed the validation steps and pushes the model
-  # # to a file destination if check passed.
-  # pusher = Pusher(
-  #     model=trainer.outputs['model'],
-  #     model_blessing=evaluator.outputs['blessing'],
-  #     push_destination=pusher_pb2.PushDestination(
-  #         filesystem=pusher_pb2.PushDestination.Filesystem(
-  #             base_directory=serving_model_dir)))
+  eval_config = tfma.EvalConfig(
+      model_specs=[tfma.ModelSpec(label_key='Survived')],
+      metrics_specs=[
+          tfma.MetricsSpec(
+              thresholds={
+                  'BinaryAccuracy':
+                      tfma.config.MetricThreshold(
+                          value_threshold=tfma.GenericValueThreshold(
+                              lower_bound={'value': 0.6}))
+              })
+      ])
+
+  evaluator = Evaluator(
+      examples=train_example_gen.outputs['examples'],
+      model=trainer.outputs['model'],
+      # Change threshold will be ignored if there is no baseline (first run).
+      eval_config=eval_config)
+
+  # Checks whether the model passed the validation steps and pushes the model
+  # to a file destination if check passed.
+  pusher = Pusher(
+      model=trainer.outputs['model'],
+      model_blessing=evaluator.outputs['blessing'],
+      push_destination=pusher_pb2.PushDestination(
+          filesystem=pusher_pb2.PushDestination.Filesystem(
+              base_directory=serving_model_dir)))
   return pipeline.Pipeline(
       pipeline_name=pipeline_name,
       pipeline_root=pipeline_root,
       components=[
           train_example_gen, train_statistics_gen, train_infer_schema, train_transform, trainer,
-          test_example_gen, test_statistics_gen, test_transform, test_pred,
+          test_example_gen, test_transform, test_pred,
           # evaluator, pusher
       ],
       enable_cache=True,
