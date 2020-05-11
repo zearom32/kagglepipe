@@ -46,8 +46,6 @@ def generate_pipeline(pipeline_name, pipeline_root, train_data, test_data, train
   test_examples = external_input(test_data_param)
   test_example_gen = CsvExampleGen(input=test_examples, instance_name="test")
 
-  hello = component.HelloComponent(
-      input_data=example_gen.outputs['examples'], instance_name='HelloWorld')
   statistics_gen = StatisticsGen(examples=example_gen.outputs['examples'])
   schema_gen = SchemaGen(statistics=statistics_gen.outputs['statistics'],
       infer_feature_shape=True) # infer_feature_shape controls sparse or dense
@@ -107,7 +105,7 @@ def generate_pipeline(pipeline_name, pipeline_root, train_data, test_data, train
       model_blessing=evaluator.outputs['blessing'],
       push_destination={'filesystem': {
           'base_directory': pusher_target_param}})
-  
+
   bulk_inferrer = BulkInferrer(
       examples=test_example_gen.outputs['examples'],
       model=trainer.outputs['model'],
@@ -116,6 +114,10 @@ def generate_pipeline(pipeline_name, pipeline_root, train_data, test_data, train
       model_spec=bulk_inferrer_pb2.ModelSpec(),
       instance_name="bulkInferrer"
       )
+
+  hello = component.HelloComponent(
+      input_data=bulk_inferrer.outputs['inference_result'], instance_name='HelloWorld')
+
 
   return pipeline.Pipeline(
       pipeline_name=pipeline_name,

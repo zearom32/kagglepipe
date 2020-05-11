@@ -21,19 +21,14 @@ class Executor(base_executor.BaseExecutor):
 
     absl.logging.info('Hello Component - Executor - Do Start')
 
-    split_to_instance = {}
     for artifact in input_dict['input_data']:
-      for split in json.loads(artifact.split_names):
-        uri = os.path.join(artifact.uri, split)
-        split_to_instance[split] = uri
+      input_dir = artifact.uri
+      output_dir = artifact_utils.get_single_uri(output_dict['output_data'])
 
-    for split, instance in split_to_instance.items():
-      input_dir = instance
-      output_dir = artifact_utils.get_split_uri(
-          output_dict['output_data'], split)
       for filename in tf.io.gfile.listdir(input_dir):
         input_uri = os.path.join(input_dir, filename)
         output_uri = os.path.join(output_dir, filename)
         io_utils.copy_file(src=input_uri, dst=output_uri, overwrite=True)
+
 
     absl.logging.info('Hello Component - Executor - Do End')
