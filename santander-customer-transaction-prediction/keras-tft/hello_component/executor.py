@@ -28,6 +28,13 @@ class Executor(base_executor.BaseExecutor):
       for filename in tf.io.gfile.listdir(input_dir):
         input_uri = os.path.join(input_dir, filename)
         output_uri = os.path.join(output_dir, filename)
+
+        # TODO convert the format to CSV
+        # Input format: https://github.com/tensorflow/serving/blob/master/tensorflow_serving/apis/prediction_log.proto#L40
+        # Output format: CSV
+
+        # https://github.com/tensorflow/tfx-bsl/blob/21dc8b397d1db30d5a8b40244668afe9081d9052/tfx_bsl/beam/run_inference.py#L790
+
         io_utils.copy_file(src=input_uri, dst=output_uri, overwrite=True)
 
 
