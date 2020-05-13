@@ -44,7 +44,7 @@ def generate_pipeline(pipeline_name, pipeline_root, train_data, test_data, train
   example_gen = CsvExampleGen(input=examples, instance_name="train")
 
   test_examples = external_input(test_data_param)
-  test_example_gen = CsvExampleGen(input=test_examples, instance_name="test")
+  test_example_gen = CsvExampleGen(input=test_examples, output_config={'split_config': {'splits': [{'name':'test', 'hash_buckets':1}]}}, instance_name="test")
 
   statistics_gen = StatisticsGen(examples=example_gen.outputs['examples'])
   schema_gen = SchemaGen(statistics=statistics_gen.outputs['statistics'],
@@ -116,8 +116,7 @@ def generate_pipeline(pipeline_name, pipeline_root, train_data, test_data, train
       )
 
   hello = component.HelloComponent(
-      input_data=bulk_inferrer.outputs['inference_result'], instance_name='HelloWorld')
-
+      input_data=bulk_inferrer.outputs['inference_result'], instance_name='csvGen5')
 
   return pipeline.Pipeline(
       pipeline_name=pipeline_name,
