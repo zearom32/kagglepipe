@@ -32,9 +32,11 @@ class Executor(base_executor.BaseExecutor):
       output_uri = os.path.join(output_dir, 'result.csv')
 
       in_memory_data = []
-      with self._make_beam_pipeline() as p:
+      # Use simple local pipeline, not the Runner used by TFX
+      with beam._make_beam_pipeline() as p:
         intrim = p | 'ReadData' >> beam.io.ReadFromTFRecord(file_pattern=input_uri, coder=beam.coders.ProtoCoder(prediction_log_pb2.PredictionLog))
         intrim = intrim | 'Process' >> beam.Map(process_item)
+        intrim = intrim | 'DebugPrint' >> beam.Map(print)
         intrim = intrim | 'InMemorySink' >> beam.Map(lambda item: in_memory_data.append(item))
 
       # intrim | 'Sink' >> beam.io.WriteToText(file_path_prefix=output_uri,
@@ -43,6 +45,8 @@ class Executor(base_executor.BaseExecutor):
       #                                          # CompressionTypes.UNCOMPRESSED,
       #                                          header='ID_code,target')
 
+      # TODO: Actually here it can't be write yet as upper pipeline is not run yet. similar like TF1.x, not eager mode.
+      # So better use stateful
       in_memory_data.sort(key = lambda item: item[0])
       with open(output_uri, 'w') as file:
         file.write('Id_code,target\n')
