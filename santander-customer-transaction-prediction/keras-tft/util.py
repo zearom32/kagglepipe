@@ -39,8 +39,10 @@ def build_keras_model(hp) -> tf.keras.Model:
       for key in range(0, 200)
   ]
   d = keras.layers.concatenate(inputs)
-  d = keras.layers.Dense(50, activation='relu')(d)
-  d = keras.layers.Dense(25, activation='relu')(d)
+  d = keras.layers.Dense(64 if hp == None else hp.Int('n_1', min_value=32, max_value=512, step=64),
+                         activation='relu')(d)
+  d = keras.layers.Dense(16 if hp == None else hp.Int('n_2', min_value=8, max_value=64, step=16),
+                         activation='relu')(d)
   outputs = keras.layers.Dense(1, activation='sigmoid')(d)
 
   model = keras.Model(inputs=inputs, outputs=outputs)
@@ -99,7 +101,7 @@ def run_fn(fn_args):
   log_dir = os.path.join(os.path.dirname(fn_args.serving_model_dir), 'logs')
   tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, update_freq='batch')
 
-  if True:
+  if False:
     print("Use normal Keras model")
     mirrored_strategy = tf.distribute.MirroredStrategy()
     with mirrored_strategy.scope():
@@ -119,14 +121,14 @@ def run_fn(fn_args):
         max_trials=5,
         executions_per_trial=3,
         directory=fn_args.serving_model_dir,
-        project_name='tuner')  
+        project_name='tuner')
     tuner.search(
         train_dataset,
         epochs=2,
         steps_per_epoch=1000,
         validation_steps=fn_args.eval_steps,
         validation_data=eval_dataset,
-        callbacks=[tensorboard_callback])
+        callbacks=[tensorboard_callback, tf.keras.callbacks.EarlyStopping()])
     tuner.search_space_summary()
     tuner.results_summary()
     best_hparams = tuner.oracle.get_best_trials(1)[0].hyperparameters.get_config()
