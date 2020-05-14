@@ -116,7 +116,7 @@ def generate_pipeline(pipeline_name, pipeline_root, train_data, test_data, train
       )
 
   hello = component.HelloComponent(
-      input_data=bulk_inferrer.outputs['inference_result'], instance_name='csvGen6')
+      input_data=bulk_inferrer.outputs['inference_result'], instance_name='csvGen7')
 
   return pipeline.Pipeline(
       pipeline_name=pipeline_name,

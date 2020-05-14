@@ -46,10 +46,10 @@ class Executor(base_executor.BaseExecutor):
       in_memory_data.sort(key = lambda item: item[0])
       with open(output_uri, 'w') as file:
         file.write('Id_code,target\n')
-        for item in data:
+        for item in in_memory_data:
           file.write('{0},{1}\n'.format(item[0], item[1]))
 
-      absl.logging.info('Output file ready here: {0}'.format(output_dir))
+      absl.logging.info('Output file ready here: {0}'.format(output_uri))
     absl.logging.info('Hello Component - Executor - Do End')
 
 def process_item(item):
