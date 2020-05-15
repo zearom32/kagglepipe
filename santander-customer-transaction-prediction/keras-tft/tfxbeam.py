@@ -112,11 +112,11 @@ def generate_pipeline(pipeline_name, pipeline_root, train_data, test_data, train
       # model_blessing=evaluator.outputs['blessing'],
       data_spec=bulk_inferrer_pb2.DataSpec(),
       model_spec=bulk_inferrer_pb2.ModelSpec(),
-      instance_name="bulkInferrer"
+      instance_name="bulkInferrer3"
       )
 
   hello = component.HelloComponent(
-      input_data=bulk_inferrer.outputs['inference_result'], instance_name='csvGen')
+      input_data=bulk_inferrer.outputs['inference_result'], instance_name='csvGen3')
 
   return pipeline.Pipeline(
       pipeline_name=pipeline_name,
