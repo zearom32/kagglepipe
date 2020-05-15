@@ -63,7 +63,8 @@ def generate_pipeline(pipeline_name, pipeline_root, train_data, test_data, train
       schema=schema_gen.outputs['schema'],
       module_file=module_file,
       train_args=trainer_pb2.TrainArgs(num_steps=train_steps),
-      eval_args=trainer_pb2.EvalArgs(num_steps=eval_steps))
+      eval_args=trainer_pb2.EvalArgs(num_steps=eval_steps),
+      instance_name="train")
 
   # Get the latest blessed model for model validation.
   model_resolver = ResolverNode(
@@ -112,11 +113,11 @@ def generate_pipeline(pipeline_name, pipeline_root, train_data, test_data, train
       # model_blessing=evaluator.outputs['blessing'],
       data_spec=bulk_inferrer_pb2.DataSpec(),
       model_spec=bulk_inferrer_pb2.ModelSpec(),
-      instance_name="bulkInferrer3"
+      instance_name="bulkInferrer"
       )
 
   hello = component.HelloComponent(
-      input_data=bulk_inferrer.outputs['inference_result'], instance_name='csvGen3')
+      input_data=bulk_inferrer.outputs['inference_result'], instance_name='csvGen')
 
   return pipeline.Pipeline(
       pipeline_name=pipeline_name,

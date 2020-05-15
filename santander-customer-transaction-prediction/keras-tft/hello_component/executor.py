@@ -61,9 +61,8 @@ def process_item(item):
   parsed = tf.io.parse_single_example(example_bytes, features=features)
   id_string = parsed['ID_code'].numpy().decode()
   output = item.predict_log.response.outputs['output_0'].float_val[0]
-  target = 1 if output >= 0.5 else 0
 
-  return (id_string, target)
+  return (id_string, output)
 
 def sortkey(a):
   ka = a[0]
