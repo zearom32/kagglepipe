@@ -66,7 +66,7 @@ def get_serve_tf_examples_fn(model, tf_transform_output):
   @tf.function
   def serve_tf_examples_fn(serialized_tf_examples):
     feature_spec = tf_transform_output.raw_feature_spec()
-    feature_spec.pop('target')
+    feature_spec.pop('target', None)
     parsed_features = tf.io.parse_example(serialized_tf_examples, feature_spec)
 
     # or don't set tft_layer but
