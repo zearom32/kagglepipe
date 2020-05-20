@@ -144,6 +144,9 @@ def main(_):
 
   if flags.FLAGS.runner == 'local':
     BeamDagRunner().run(pipeline)
+  #elif flags.FLAGS.runner == 'flink':
+    # need to slightly change TFX codes to support other Beam-runners
+    # BeamDagRunner(pipelineOptions).run(pipeline)
   elif flags.FLAGS.runner == 'kubeflow':
     metadata_config = kubeflow_dag_runner.get_default_kubeflow_metadata_config()
     tfx_image = os.environ.get('KUBEFLOW_TFX_IMAGE', None)
