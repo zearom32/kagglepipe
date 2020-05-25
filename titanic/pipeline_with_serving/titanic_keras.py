@@ -58,6 +58,7 @@ def create_tfx_pipeline(pipeline_name: Text, pipeline_root: Text,
 
   # Computes statistics over data for visualization and example validation.
   train_statistics_gen = StatisticsGen(examples=train_example_gen.outputs['examples'])
+  # test_statistics_gen = StatisticsGen(examples=test_example_gen.outputs['examples'])
 
   # Generates schema based on statistics files.
   train_infer_schema = SchemaGen(
@@ -69,6 +70,12 @@ def create_tfx_pipeline(pipeline_name: Text, pipeline_root: Text,
       schema=train_infer_schema.outputs['schema'],
       module_file=module_file,
       instance_name='train_transformer')
+
+  test_transform = Transform(
+      examples=test_example_gen.outputs['examples'],
+      schema=train_infer_schema.outputs['schema'],
+      module_file=module_file,
+      instance_name='test_transformer')
 
   # Uses user-provided Python function that implements a model using TF-Learn.
   trainer = Trainer(
@@ -82,7 +89,7 @@ def create_tfx_pipeline(pipeline_name: Text, pipeline_root: Text,
       eval_args=trainer_pb2.EvalArgs(num_steps=10))
   
   test_pred = custom_component.TestPredComponent(
-      examples=test_example_gen.outputs['examples'],
+      transformed_examples=test_transform.outputs['transformed_examples'],
       model=trainer.outputs['model']
   )
 
@@ -104,13 +111,21 @@ def create_tfx_pipeline(pipeline_name: Text, pipeline_root: Text,
       # Change threshold will be ignored if there is no baseline (first run).
       eval_config=eval_config)
 
+  # Checks whether the model passed the validation steps and pushes the model
+  # to a file destination if check passed.
+  pusher = Pusher(
+      model=trainer.outputs['model'],
+      model_blessing=evaluator.outputs['blessing'],
+      push_destination=pusher_pb2.PushDestination(
+          filesystem=pusher_pb2.PushDestination.Filesystem(
+              base_directory=serving_model_dir)))
   return pipeline.Pipeline(
       pipeline_name=pipeline_name,
       pipeline_root=pipeline_root,
       components=[
           train_example_gen, train_statistics_gen, train_infer_schema, train_transform, trainer,
-          evaluator, 
-          test_example_gen, test_pred,
+          test_example_gen, test_transform, test_pred,
+          # evaluator, pusher
       ],
       enable_cache=True,
       metadata_connection_config=metadata.sqlite_metadata_connection_config(
