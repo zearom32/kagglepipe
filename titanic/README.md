@@ -24,7 +24,7 @@ python3 data_pipeline.py --input_file=/tmp/titanic/data/train.csv --output_file=
 python3 data_pipeline.py --input_file=/tmp/titanic/data/test.csv --output_file=/tmp/titanic/data/test/test.tfrecord
 
 # Train model and export saved model.
-python3 titanic_keras.py --project_root=/tmp/titanic/ --data_root=/tmp/titanic/data/train/
+python3 titanic_keras.py --project_root=/tmp/titanic/ --data_root=/tmp/titanic/data/
 
 # Run serving
 docker run -p 8500:8500 --mount type=bind,source=\
